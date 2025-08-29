@@ -116,7 +116,7 @@ class _ReaderSwipeCleanState extends State<ReaderSwipeClean> {
 
   // How much text we allow vs. theoretical capacity.
   // 0.90–0.93 is a good band. Start with what looked best for you.
-  static const double _CAP_FUDGE = 0.94;
+  static const double _CAP_FUDGE = 0.88;
 
   // Keep these in sync with the chapterBody padding and card margins.
   static const double _PAGE_PAD_TOP = 22;
