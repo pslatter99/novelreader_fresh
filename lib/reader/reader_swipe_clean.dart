@@ -16,7 +16,7 @@ class FrontMatterItem {
 class _TopChrome extends StatelessWidget {
   final VoidCallback onBack;
   final int currentChapter; // 1-based
-  final int maxChapters;    // e.g. 39
+  final int maxChapters;
   final ValueChanged<int> onSelectChapter;
 
   const _TopChrome({
@@ -29,7 +29,6 @@ class _TopChrome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Stay purely int to avoid DropdownButton<num> issues
     final int safeValue = currentChapter < 1
         ? 1
         : (currentChapter > maxChapters ? maxChapters : currentChapter);
@@ -83,7 +82,7 @@ class ReaderSwipeClean extends StatefulWidget {
   const ReaderSwipeClean({
     super.key,
     this.assetPath,            // fallback: single manuscript file
-    this.chaptersDir,          // preferred: folder with chXX_title.txt + chXX_burn_body.txt
+    this.chaptersDir,          // preferred: folder with chXX_title.txt + chXX_<book>_body.txt
     required this.title,
     required this.coverAsset,
     required this.author,
@@ -106,38 +105,32 @@ class ReaderSwipeClean extends StatefulWidget {
 }
 
 class _ReaderSwipeCleanState extends State<ReaderSwipeClean> {
-  // ===== constants (tweak here) =====
+  // ===== constants =====
   static const TextStyle _bodyStyle = TextStyle(
     fontSize: 18,
     height: 1.5,
     fontWeight: FontWeight.w700,
     color: Colors.black,
   );
-
-  // How much text we allow vs. theoretical capacity.
-  // 0.90–0.93 is a good band. Start with what looked best for you.
   static const double _CAP_FUDGE = 0.88;
-
-  // Keep these in sync with the chapterBody padding and card margins.
   static const double _PAGE_PAD_TOP = 22;
-  static const double _PAGE_PAD_BOTTOM = 44; // nuked bottom gutter
+  static const double _PAGE_PAD_BOTTOM = 44;
   static const double _SIDE_PAD = 20;
   static const double _CARD_MARGIN = 8;
-  static const double _HEADROOM = 40; // tiny buffer so dense pages never touch the edge
+  static const double _HEADROOM = 40;
 
-  // ===== runtime state =====
+  // ===== state =====
   final PageController _pc = PageController();
   final List<_Entry> _pages = [];
-  final List<int> _chapterStartIndex = []; // index of each chapter’s title page
+  final List<int> _chapterStartIndex = [];
   int _current = 0;
 
-  bool _showUi = false;   // tap-to-toggle top chrome
-  Timer? _hideTimer;      // auto-hide timer for the chrome
+  bool _showUi = false;
+  Timer? _hideTimer;
 
   @override
   void initState() {
     super.initState();
-    // Build after first layout so we know viewport size for pagination
     WidgetsBinding.instance.addPostFrameCallback((_) => _buildAllPages());
   }
 
@@ -155,38 +148,27 @@ class _ReaderSwipeCleanState extends State<ReaderSwipeClean> {
     });
   }
 
-  // == Helpers for pagination ==
   bool _isStarLine(String s) =>
-      RegExp(r'^\s*(\*{3,}|(\*\s*){3,})\s*$').hasMatch(s); // ***, ******, * * * etc.
+      RegExp(r'^\s*(\*{3,}|(\*\s*){3,})\s*$').hasMatch(s);
 
-  /// Estimate characters-per-page from viewport and style.
   int _estimateCharsPerPage(BuildContext context) {
     final mq = MediaQuery.of(context);
-
-    // Width inside card + padding
     final usableW = mq.size.width - (_SIDE_PAD * 2) - (_CARD_MARGIN * 2);
-    // Height inside safe areas, card margins, paddings, + a little headroom
     final usableH = mq.size.height
         - (mq.padding.top + mq.padding.bottom)
         - (_PAGE_PAD_TOP + _PAGE_PAD_BOTTOM)
         - (_CARD_MARGIN * 2)
         - _HEADROOM;
-
-    // Estimate chars per line & lines per page.
     final fontSize = _bodyStyle.fontSize ?? 18;
     final lineHeightPx = fontSize * (_bodyStyle.height ?? 1.5);
     final charsPerLine = (usableW / (fontSize * 0.55)).floor().clamp(28, 60);
     final linesPerPage = (usableH / lineHeightPx).floor().clamp(12, 28);
-
     final cap = (charsPerLine * linesPerPage).toInt();
     return (cap * _CAP_FUDGE).floor().clamp(300, 1100);
   }
 
-  /// Split the raw chapter into *paragraphs* (unwrapping hard-wraps).
-  /// Scene breaks are normalized to the tiny paragraph "****".
   List<String> _paragraphsFromRaw(String raw) {
     final lines = raw.replaceAll('\r\n', '\n').split('\n');
-
     final paras = <String>[];
     final sb = StringBuffer();
     bool has = false;
@@ -201,36 +183,30 @@ class _ReaderSwipeCleanState extends State<ReaderSwipeClean> {
 
     for (final line in lines) {
       final t = line.trimRight();
-
       if (t.trim().isEmpty) {
         flush();
         continue;
       }
-
       if (_isStarLine(t)) {
         flush();
-        paras.add('****'); // normalize
+        paras.add('****');
         continue;
       }
-
       final chunk = t.trim();
       if (!has) {
         sb.write(chunk);
         has = true;
       } else {
         sb.write(' ');
-        sb.write(chunk); // unwrap into flowing paragraph
+        sb.write(chunk);
       }
     }
     flush();
     return paras;
   }
 
-  /// Build page strings from paragraphs, honoring capacity.
-  /// Keeps '****' as a tiny paragraph; renderer will center it on its own line.
   List<String> _paginateByParagraphs(String raw, int capacity) {
     final paras = _paragraphsFromRaw(raw);
-
     final pages = <String>[];
     final page = StringBuffer();
     int cur = 0;
@@ -250,7 +226,6 @@ class _ReaderSwipeCleanState extends State<ReaderSwipeClean> {
         pushPage();
       }
 
-      // If one paragraph is bigger than capacity, split it by words.
       if (p != '****' && p.length > capacity) {
         final words = RegExp(r'\S+|\s+').allMatches(p).map((m) => m.group(0)!).toList();
         final sb = StringBuffer();
@@ -275,7 +250,6 @@ class _ReaderSwipeCleanState extends State<ReaderSwipeClean> {
     }
     pushPage();
 
-    // Merge tiny trailing pages with previous if possible
     for (int i = 1; i < pages.length; i++) {
       final a = pages[i - 1], b = pages[i];
       if ((a.length + b.length) < (capacity * 0.55)) {
@@ -292,14 +266,17 @@ class _ReaderSwipeCleanState extends State<ReaderSwipeClean> {
     _pages.clear();
     _chapterStartIndex.clear();
 
-    // Base pages
     _pages.add(_Entry.cover());
     _pages.add(_Entry.title());
 
-    // Front matter
+    // Front matter (safe)
     for (final fm in widget.frontMatter) {
-      final text = await rootBundle.loadString(fm.assetPath);
-      _pages.add(_Entry.frontText(text, scrollable: fm.scrollable));
+      try {
+        final text = await rootBundle.loadString(fm.assetPath);
+        _pages.add(_Entry.frontText(text, scrollable: fm.scrollable));
+      } catch (_) {
+        // skip missing FM
+      }
     }
 
     final capacity = _estimateCharsPerPage(context);
@@ -310,7 +287,6 @@ class _ReaderSwipeCleanState extends State<ReaderSwipeClean> {
       await _buildChaptersFromMonolithic(widget.assetPath!, capacity);
     }
 
-    // Start index
     final startIndex = switch (widget.startAt) {
       ReaderStart.cover => 0,
       ReaderStart.title => 1,
@@ -329,16 +305,36 @@ class _ReaderSwipeCleanState extends State<ReaderSwipeClean> {
 
   Future<void> _buildChaptersFromFolder(String base, int capacity) async {
     final total = widget.maxChapters ?? 39;
+
+    // infer key from folder name (burn/rocksolid/trustme/draculi/loser)
+    final segs = base.split('/').where((s) => s.isNotEmpty).toList();
+    final key = segs.isEmpty ? 'burn' : segs.last;
+
     for (int n = 1; n <= total; n++) {
       final pad = n.toString().padLeft(2, '0');
       final titlePath = '$base/ch${pad}_title.txt';
-      final bodyPath  = '$base/ch${pad}_burn_body.txt';
+      final bodyPath  = '$base/ch${pad}_${key}_body.txt';
 
-      final titleText = (await rootBundle.loadString(titlePath)).trim();
-      final bodyText  = (await rootBundle.loadString(bodyPath)).trim();
+      // Title (safe)
+      String titleText = 'Chapter $n';
+      try {
+        final t = (await rootBundle.loadString(titlePath)).trim();
+        if (t.isNotEmpty) titleText = t;
+      } catch (_) {
+        // keep default
+      }
+
+      // Body (required; skip if missing)
+      String bodyText;
+      try {
+        bodyText = (await rootBundle.loadString(bodyPath)).trim();
+        if (bodyText.isEmpty) continue;
+      } catch (_) {
+        continue;
+      }
 
       _chapterStartIndex.add(_pages.length);
-      _pages.add(_Entry.chapterTitle(titleText.isEmpty ? 'Chapter $n' : titleText));
+      _pages.add(_Entry.chapterTitle(titleText));
 
       final slices = _paginateByParagraphs(bodyText, capacity);
       for (final s in slices) {
@@ -348,7 +344,14 @@ class _ReaderSwipeCleanState extends State<ReaderSwipeClean> {
   }
 
   Future<void> _buildChaptersFromMonolithic(String manuscriptPath, int capacity) async {
-    final manuscript = await rootBundle.loadString(manuscriptPath);
+    // Safely load a single “manuscript.txt” that contains all chapters
+    String manuscript;
+    try {
+      manuscript = await rootBundle.loadString(manuscriptPath);
+    } catch (_) {
+      return; // missing file → just skip
+    }
+
     final re = RegExp(r'(?=^\s*Chapter\s+\d+\b)', multiLine: true);
     final chunks = manuscript
         .replaceAll('\r\n', '\n')
@@ -480,7 +483,6 @@ class _PageCard extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, c) {
           final pr = MediaQuery.of(context).devicePixelRatio;
-          // Snap the page height to the physical pixel grid to avoid sub-pixel clipping.
           final snappedH = (c.maxHeight * pr).floor() / pr;
 
           return SizedBox(
@@ -493,7 +495,7 @@ class _PageCard extends StatelessWidget {
                   BoxShadow(blurRadius: 16, color: Color(0x14000000), offset: Offset(0, 6)),
                 ],
               ),
-              child: ClipRRect( // hard clip inside the shadowed container
+              child: ClipRRect(
                 borderRadius: BorderRadius.circular(14),
                 child: ColoredBox(
                   color: Colors.white,
@@ -550,13 +552,12 @@ class _PageCard extends StatelessWidget {
         );
 
       case _PageType.chapterBody:
-        // Non-scrollable; content was chunked to fit typical screens.
         return Padding(
           padding: const EdgeInsets.fromLTRB(
             _ReaderSwipeCleanState._SIDE_PAD,
             _ReaderSwipeCleanState._PAGE_PAD_TOP,
             _ReaderSwipeCleanState._SIDE_PAD,
-            _ReaderSwipeCleanState._PAGE_PAD_BOTTOM, // match constants
+            _ReaderSwipeCleanState._PAGE_PAD_BOTTOM,
           ),
           child: _SceneAwareBody(
             text: entry.text ?? '',
@@ -591,9 +592,6 @@ class _CenteredBlock extends StatelessWidget {
   }
 }
 
-/// Scene-aware paragraph renderer:
-/// - centers any line that is only *** (supports "***", "******", and "* * *")
-/// - unwraps hard-wrapped lines into flowing paragraphs
 class _SceneAwareBody extends StatelessWidget {
   const _SceneAwareBody({required this.text, required this.baseStyle});
 
@@ -602,7 +600,7 @@ class _SceneAwareBody extends StatelessWidget {
 
   bool _isBlank(String s) => s.trim().isEmpty;
   bool _isStarLine(String s) =>
-      RegExp(r'^\s*(\*{3,}|(\*\s*){3,})\s*$').hasMatch(s); // robust match
+      RegExp(r'^\s*(\*{3,}|(\*\s*){3,})\s*$').hasMatch(s);
 
   static const _thb = TextHeightBehavior(
     applyHeightToFirstAscent: false,
@@ -611,8 +609,8 @@ class _SceneAwareBody extends StatelessWidget {
 
   static const _strut = StrutStyle(
     forceStrutHeight: true,
-    height: 1.5,  // match baseStyle height
-    leading: 0.2, // tiny extra breathing room
+    height: 1.5,
+    leading: 0.2,
   );
 
   @override
@@ -652,21 +650,21 @@ class _SceneAwareBody extends StatelessWidget {
       if (_isStarLine(raw)) {
         flushPara();
         children.add(
-  Center(
-    child: Text(
-      '****', // normalized
-      textAlign: TextAlign.center,
-      style: const TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.w800,
-        letterSpacing: 2,
-      ),
-      textHeightBehavior: _thb,
-      strutStyle: _strut,
-      softWrap: false,
-    ),
-  ),
-);
+          const Center(
+            child: Text(
+              '****',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 2,
+              ),
+              textHeightBehavior: _thb,
+              strutStyle: _strut,
+              softWrap: false,
+            ),
+          ),
+        );
         children.add(const SizedBox(height: 14));
         continue;
       }
@@ -677,17 +675,16 @@ class _SceneAwareBody extends StatelessWidget {
         has = true;
       } else {
         para.write(' ');
-        para.write(chunk.trimLeft()); // unwrap into a flowing paragraph
+        para.write(chunk.trimLeft());
       }
     }
 
     flushPara();
 
     if (children.isNotEmpty && children.last is SizedBox) {
-      children.removeLast(); // trailing spacer
+      children.removeLast();
     }
 
-    // Add tiny bottom padding so descenders never kiss the card edge
     children.add(const SizedBox(height: 6));
 
     return Column(

@@ -7,13 +7,13 @@ class BookDraculiPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const BookDetailTemplate(
+    return BookDetailTemplate(
       title: 'The Disciples of Coont Draculi',
       coverAsset: 'assets/images/disciples-of-coont-draculi-cover.webp',
       tagline: 'Blood? Crack cocaine? – Never mix your drinks.',
       description:
           'A twisted vampire tale from medieval Europe to modern Vancouver. Dark, outrageous, and deliciously depraved.',
-      book: BookConfig.draculi,
+      book: draculi,
     );
   }
 }

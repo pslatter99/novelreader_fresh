@@ -21,9 +21,13 @@ flutter:
 
   assets:
     - assets/images/
-    - assets/fonts/
     - assets/front_matter/
     - assets/chapters/burn/
+    - assets/chapters/rocksolid/
+    - assets/chapters/trustme/
+    - assets/chapters/draculi/
+    - assets/chapters/loser/
+
     
 
   fonts:

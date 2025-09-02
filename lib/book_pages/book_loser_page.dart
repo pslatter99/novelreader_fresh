@@ -1,3 +1,4 @@
+import "../reader/book_configs.dart";
 import 'package:flutter/material.dart';
 import '_template.dart';
 
@@ -6,14 +7,13 @@ class BookLoserPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const BookDetailTemplate(
-      title: 'Loser',
-      coverAsset: 'assets/images/loser-cover.webp',
+    return BookDetailTemplate(
+      book: loser, // <-- this powers FM + chapters
       tagline: 'Sex, sun, and secrets — paradise has a dark side.',
       description:
           'Take a dangerously seductive detour into Thailand’s sun-soaked chaos—through tropical beaches, Muay Thai boxing, beautiful women… and ladyboys.',
-      comingSoon: true,
-      showButtons: false,
+      showButtons: true,
+      comingSoon: false,
     );
   }
 }

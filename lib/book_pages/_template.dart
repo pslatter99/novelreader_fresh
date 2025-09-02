@@ -1,205 +1,207 @@
 // lib/book_pages/_template.dart
 import 'package:flutter/material.dart';
-import '../components/stars.dart';
-
-// Reader
 import '../reader/book_configs.dart';
 import '../reader/reader_swipe_clean.dart';
 
 class BookDetailTemplate extends StatelessWidget {
   const BookDetailTemplate({
     super.key,
-    required this.title,
-    this.subtitle,
-    required this.coverAsset,
-    this.tagline,
-    required this.description,
-    this.comingSoon = false,
-    this.showButtons = true,
-    this.topReview,
+
+    // Book powers "Read Me" and front matter (optional so Bones can be const without a book)
     this.book,
-    this.reviews = const <String>[],
+
+    // Display fields (you already use these on your pages)
+    this.title,          // falls back to book?.title
+    this.subtitle,
+    this.coverAsset,     // falls back to book?.coverAsset
+    this.tagline,
+    this.description,
+    this.topReview,
+    this.reviews,
+
+    // Controls
+    this.showButtons = true,                  // shows READ ME if a book is present
+    this.showAudioButton = false,             // optional 2nd button
+    this.audioOnPressed,                      // handler for audiobook
+    this.primaryButtonLabel = 'READ ME',      // restore your old label
+    this.secondaryButtonLabel = 'Audiobook',
+    this.showFrontMatterPreview = false,      // keep OFF to avoid scroll of FM here
+    this.comingSoon = false,
   });
 
-  final String title;
-  final String? subtitle;
-  final String coverAsset;
-  final String? tagline;
-  final String description;
-  final bool comingSoon;
-  final bool showButtons;
-  final String? topReview;
   final BookConfig? book;
-  final List<String> reviews;
+
+  final String? title;
+  final String? subtitle;
+  final String? coverAsset;
+  final String? tagline;
+  final String? description;
+  final String? topReview;
+  final List<String>? reviews;
+
+  final bool showButtons;
+  final bool showAudioButton;
+  final VoidCallback? audioOnPressed;
+  final String primaryButtonLabel;
+  final String secondaryButtonLabel;
+  final bool showFrontMatterPreview;
+  final bool comingSoon;
 
   @override
   Widget build(BuildContext context) {
-    final buttonStyle = FilledButton.styleFrom(
-      backgroundColor: Colors.red.shade700,
-      foregroundColor: Colors.white,
-      textStyle: const TextStyle(
-        fontWeight: FontWeight.w900,
-        letterSpacing: .3,
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-    );
+    final hasBook = book != null;
+    final String displayTitle = (title ?? (hasBook ? book!.title : '')).trim();
+    final String displayCover = (coverAsset ?? (hasBook ? book!.coverAsset : '')).trim();
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.orange,
-        centerTitle: true,
-        title: const Text(
-          'NovelReader',
-          style: TextStyle(fontWeight: FontWeight.w900),
-        ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            const Stars(size: 22),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              if (displayCover.isNotEmpty) Image.asset(displayCover, height: 320),
+              const SizedBox(height: 12),
 
-            if (tagline != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                tagline!,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
-              ),
-            ],
-
-            const SizedBox(height: 14),
-
-            // Cover (responsive)
-            Center(
-              child: LayoutBuilder(
-                builder: (context, c) {
-                  final w = c.maxWidth;
-                  final imgW = w > 340 ? 320.0 : w * 0.9;
-                  return ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.asset(
-                      coverAsset,
-                      width: imgW,
-                      fit: BoxFit.contain,
-                    ),
-                  );
-                },
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            // Title + optional subtitle
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
-            ),
-            if (subtitle != null) ...[
-              const SizedBox(height: 2),
-              Text(subtitle!, textAlign: TextAlign.center),
-            ],
-
-            const SizedBox(height: 14),
-
-            // Description
-            Text(
-              description,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-            ),
-
-            // Buttons
-            if (showButtons && !comingSoon) ...[
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  FilledButton(
-                    style: buttonStyle,
-                    onPressed: () {
-                      if (book == null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Reader not configured yet for this book.'),
-                          ),
-                        );
-                        return;
-                      }
-                      final cfg = book!;
-
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => ReaderSwipeClean(
-                            // ✅ use the per-chapter folder:
-                            chaptersDir: 'assets/chapters/burn',
-                            // (fallback single-file mode is still supported via assetPath if you ever need it)
-
-                            title: cfg.title,
-                            coverAsset: cfg.coverAsset,
-                            author: 'Paul Slatter',
-                            startAt: ReaderStart.cover,
-                            maxChapters: 39,
-                            frontMatter: const [
-                              FrontMatterItem('assets/front_matter/burn_copyright.txt', scrollable: true),
-                              FrontMatterItem('assets/front_matter/burn_also_by.txt'),
-                              FrontMatterItem('assets/front_matter/burn_for_page.txt'),
-                              FrontMatterItem('assets/front_matter/burn_title_page_2.txt'),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                    child: const Text('READ NOW'),
-                  ),
-                  const SizedBox(width: 12),
-                  FilledButton(
-                    style: buttonStyle,
-                    onPressed: () {},
-                    child: const Text('AUDIOBOOK'),
+              if (displayTitle.isNotEmpty) ...[
+                Text(
+                  displayTitle,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: .2),
+                ),
+                if ((subtitle ?? '').trim().isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle!.trim(),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black54),
                   ),
                 ],
-              ),
-              const SizedBox(height: 20),
-            ],
+                const SizedBox(height: 8),
+              ],
 
-            // Featured review (optional)
-            if (topReview != null) ...[
-              Text(
-                '"$topReview"',
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 12),
-            ],
-
-            // Reviews list (centered + bold)
-            if (reviews.isNotEmpty) ...[
-              ...reviews.map(
-                (r) => Padding(
-                  padding: const EdgeInsets.only(top: 8),
+              if ((tagline ?? '').trim().isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Text(
-                    r,
+                    tagline!.trim(),
                     textAlign: TextAlign.center,
-                    style: const TextStyle(fontWeight: FontWeight.w800),
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
                   ),
                 ),
-              ),
-              const SizedBox(height: 8),
-            ],
 
-            if (comingSoon)
-              const Padding(
-                padding: EdgeInsets.only(top: 16),
-                child: Text(
-                  'Coming Soon',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+              if ((description ?? '').trim().isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+                  child: Text(
+                    description!.trim(),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, height: 1.45),
+                  ),
                 ),
-              ),
-          ],
+
+              if ((topReview ?? '').trim().isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                  child: Text(
+                    '“${topReview!.trim()}”',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, height: 1.45),
+                  ),
+                ),
+
+              if (comingSoon)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8, bottom: 12),
+                  child: Text('Coming Soon', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+
+              // Buttons row (READ ME + optional Audiobook)
+              if (!comingSoon)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (hasBook && showButtons)
+                      ElevatedButton(
+                        onPressed: () {
+                          final fmItems = book!.frontMatter.map((p) => FrontMatterItem(p)).toList();
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ReaderSwipeClean(
+                                title: book!.title,
+                                author: 'Paul Slatter',
+                                coverAsset: book!.coverAsset,
+                                chaptersDir: 'assets/chapters/${book!.key}',
+                                maxChapters: book!.chapterCount,
+                                frontMatter: fmItems,
+                                startAt: ReaderStart.cover,
+                              ),
+                            ),
+                          );
+                        },
+                        child: Text(primaryButtonLabel),
+                      ),
+                    if (hasBook && showButtons && showAudioButton) const SizedBox(width: 12),
+                    if (showAudioButton)
+                      OutlinedButton(
+                        onPressed: audioOnPressed ??
+                            () => ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('$secondaryButtonLabel coming soon')),
+                                ),
+                        child: Text(secondaryButtonLabel),
+                      ),
+                  ],
+                ),
+
+              const SizedBox(height: 12),
+
+              if (reviews != null && reviews!.isNotEmpty)
+                Column(
+                  children: [
+                    for (final r in reviews!)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+                        child: Text(
+                          r,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontWeight: FontWeight.w700, height: 1.45),
+                        ),
+                      ),
+                    const SizedBox(height: 6),
+                  ],
+                ),
+
+              // Front-matter preview (off by default to keep detail pages clean)
+              if (hasBook && showFrontMatterPreview)
+                FutureBuilder<List<String>>(
+                  future: loadFrontMatterTexts(book!),
+                  builder: (context, snap) {
+                    if (snap.connectionState != ConnectionState.done) {
+                      return const Padding(
+                        padding: EdgeInsets.all(24),
+                        child: CircularProgressIndicator(),
+                      );
+                    }
+                    final pages = snap.data ?? const [];
+                    if (pages.isEmpty) return const SizedBox.shrink();
+                    return Column(
+                      children: [
+                        for (final t in pages)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            child: Text(
+                              t,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+            ],
+          ),
         ),
       ),
     );

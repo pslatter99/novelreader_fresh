@@ -1,3 +1,4 @@
+import "../reader/book_configs.dart";
 import 'package:flutter/material.dart';
 import '_template.dart';
 

@@ -1,0 +1,17 @@
+analysis_options.yaml
+android
+assets
+BEFORE_RENAME.txt
+build
+ios
+lib
+linux
+macos
+novelreader_fresh.iml
+pubspec.lock
+pubspec.yaml
+README.md
+run.log
+test
+web
+windows

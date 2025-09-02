@@ -8,20 +8,28 @@ class BookBurnPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const BookDetailTemplate(
+    return BookDetailTemplate(
+      book: burn,
       title: 'Burn',
       subtitle: 'Book One',
       coverAsset: 'assets/images/burn-cover.webp',
       tagline: 'If you like Carl Hiaasen — you’ll love this.',
       description:
           'In tranquil Vancouver a charred corpse and a paralyzed woman drag a washed-up PI into a darkly funny world of arson, models, and buried secrets.',
-      // Reviews shown UNDER the buttons (centered + bold)
-      reviews: [
+      reviews: const [
         '⭐️⭐️⭐️⭐️⭐️ — Slatter is a genius!\nThe dialogue, pace, and twisted humor in this book made it one of the most unique thrillers I\'ve ever read. Slatter manages to surprise at every turn.',
         '⭐️⭐️⭐️⭐️⭐️ — Unputdownable\nDarkly funny, stylish, violent, and surprisingly heartfelt. Slatter has created something unique with “Burn.”',
         '⭐️⭐️⭐️⭐️⭐️ — Dark, fast, funny\nA brilliant mix of crime, dark humour, and unforgettable characters. Felt like I was watching a Netflix thriller in book form.',
       ],
-      book: BookConfig.burn,
+      showButtons: true,
+      showAudioButton: true,
+      audioOnPressed: () {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Audiobook coming soon')),
+        );
+      },
+      showFrontMatterPreview: false,
     );
   }
 }
+
