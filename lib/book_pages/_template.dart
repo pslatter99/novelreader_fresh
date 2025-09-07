@@ -3,32 +3,60 @@ import 'package:flutter/material.dart';
 import '../reader/book_configs.dart';
 import '../reader/reader_swipe_clean.dart';
 
+/// ONE top-level helper: order FM and choose which pages scroll.
+/// Order: title_page -> copyright -> also_by -> for_page -> title_page_2
+List<FrontMatterItem> _canonicalizeFrontMatter(List<String> fmPaths) {
+  String _name(String p) => p.split('/').last.toLowerCase();
+  String? _find(String suffix) {
+    for (final p in fmPaths) {
+      if (_name(p).endsWith(suffix)) return p;
+    }
+    return null;
+  }
+
+  final items = <FrontMatterItem>[];
+
+  final pTitle1    = _find('_title_page.txt');
+  final pCopyright = _find('_copyright.txt');
+  final pAlsoBy    = _find('_also_by.txt');
+  final pForPage   = _find('_for_page.txt');
+  final pTitle2    = _find('_title_page_2.txt');
+
+  if (pTitle1 != null)    items.add(FrontMatterItem(pTitle1,    scrollable: false));
+  if (pCopyright != null) items.add(FrontMatterItem(pCopyright, scrollable: true)); // ONLY copyright scrolls
+  if (pAlsoBy != null)    items.add(FrontMatterItem(pAlsoBy,    scrollable: false));
+  if (pForPage != null)   items.add(FrontMatterItem(pForPage,   scrollable: false)); // make true if you want it scrollable
+  if (pTitle2 != null)    items.add(FrontMatterItem(pTitle2,    scrollable: false));
+
+  // Append any extras not matched above (non-scrollable)
+  final used = items.map((i) => i.assetPath).toSet();
+  for (final p in fmPaths) {
+    if (!used.contains(p)) items.add(FrontMatterItem(p, scrollable: false));
+  }
+  return items;
+}
+
 class BookDetailTemplate extends StatelessWidget {
   const BookDetailTemplate({
     super.key,
-
-    // Book powers "Read Me" and front matter (optional so Bones can be const without a book)
     this.book,
-
-    // Display fields (you already use these on your pages)
-    this.title,          // falls back to book?.title
+    this.title,
     this.subtitle,
-    this.coverAsset,     // falls back to book?.coverAsset
+    this.coverAsset,
     this.tagline,
     this.description,
     this.topReview,
     this.reviews,
-
-    // Controls
-    this.showButtons = true,                  // shows READ ME if a book is present
-    this.showAudioButton = false,             // optional 2nd button
-    this.audioOnPressed,                      // handler for audiobook
-    this.primaryButtonLabel = 'READ ME',      // restore your old label
+    this.showButtons = true,
+    this.showAudioButton = false,
+    this.audioOnPressed,
+    this.primaryButtonLabel = 'READ ME',
     this.secondaryButtonLabel = 'Audiobook',
-    this.showFrontMatterPreview = false,      // keep OFF to avoid scroll of FM here
+    this.showFrontMatterPreview = false,
     this.comingSoon = false,
   });
 
+  // fields
   final BookConfig? book;
 
   final String? title;
@@ -52,6 +80,11 @@ class BookDetailTemplate extends StatelessWidget {
     final hasBook = book != null;
     final String displayTitle = (title ?? (hasBook ? book!.title : '')).trim();
     final String displayCover = (coverAsset ?? (hasBook ? book!.coverAsset : '')).trim();
+
+    // Use the helper above
+    final fmItems = hasBook
+        ? _canonicalizeFrontMatter(book!.frontMatter)
+        : const <FrontMatterItem>[];
 
     return Scaffold(
       body: SafeArea(
@@ -124,7 +157,6 @@ class BookDetailTemplate extends StatelessWidget {
                     if (hasBook && showButtons)
                       ElevatedButton(
                         onPressed: () {
-                          final fmItems = book!.frontMatter.map((p) => FrontMatterItem(p)).toList();
                           Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -134,7 +166,7 @@ class BookDetailTemplate extends StatelessWidget {
                                 coverAsset: book!.coverAsset,
                                 chaptersDir: 'assets/chapters/${book!.key}',
                                 maxChapters: book!.chapterCount,
-                                frontMatter: fmItems,
+                                frontMatter: fmItems, // ordered/scrollable FM
                                 startAt: ReaderStart.cover,
                               ),
                             ),
@@ -172,7 +204,7 @@ class BookDetailTemplate extends StatelessWidget {
                   ],
                 ),
 
-              // Front-matter preview (off by default to keep detail pages clean)
+              // Optional: preview FM on the detail page (off by default)
               if (hasBook && showFrontMatterPreview)
                 FutureBuilder<List<String>>(
                   future: loadFrontMatterTexts(book!),

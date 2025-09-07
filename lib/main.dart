@@ -1,4 +1,7 @@
+// lib/main.dart
 import 'package:flutter/material.dart';
+import 'paywall/access.dart'; // paywall/progress storage
+
 import 'home_page.dart';
 import 'book_pages/book_burn_page.dart';
 import 'book_pages/book_rocksolid_page.dart';
@@ -7,7 +10,10 @@ import 'book_pages/book_draculi_page.dart';
 import 'book_pages/book_loser_page.dart';
 import 'book_pages/book_bones_page.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await AccessManager.instance.init();          // load paywall + progress
+  // AccessManager.instance.setDebugPassThrough(true); // optional while testing
   runApp(const NovelReaderApp());
 }
 
@@ -26,13 +32,13 @@ class NovelReaderApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.orange),
       ),
       routes: {
-        '/': (context) => const HomePage(),
-        '/burn': (context) => const BookBurnPage(),
-        '/rocksolid': (context) => const BookRocksolidPage(),
-        '/trustme': (context) => const BookTrustmePage(),
-        '/draculi': (context) => const BookDraculiPage(),
-        '/loser': (context) => const BookLoserPage(),
-        '/bones': (context) => const BookBonesPage(),
+        '/': (_) => const HomePage(),
+        '/burn': (_) => const BookBurnPage(),
+        '/rocksolid': (_) => const BookRocksolidPage(),
+        '/trustme': (_) => const BookTrustmePage(),
+        '/draculi': (_) => const BookDraculiPage(),
+        '/loser': (_) => const BookLoserPage(),
+        '/bones': (_) => const BookBonesPage(),
       },
     );
   }

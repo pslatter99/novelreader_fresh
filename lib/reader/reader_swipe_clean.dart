@@ -3,6 +3,8 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import '../paywall/access.dart';
+import '../paywall/paywall_screen.dart';
 
 enum ReaderStart { cover, title, chapter1 }
 
@@ -119,6 +121,8 @@ class _ReaderSwipeCleanState extends State<ReaderSwipeClean> {
   static const double _CARD_MARGIN = 8;
   static const double _HEADROOM = 40;
 
+  static const int _UI_HOLD_SECS = 10; // hold top banner for 10s
+
   // ===== state =====
   final PageController _pc = PageController();
   final List<_Entry> _pages = [];
@@ -127,6 +131,11 @@ class _ReaderSwipeCleanState extends State<ReaderSwipeClean> {
 
   bool _showUi = false;
   Timer? _hideTimer;
+
+  // paywall helpers
+  late String _bookKey;
+  bool _showingPaywall = false;
+  int? _pendingIndexAfterUnlock;
 
   @override
   void initState() {
@@ -143,7 +152,7 @@ class _ReaderSwipeCleanState extends State<ReaderSwipeClean> {
 
   void _scheduleHide() {
     _hideTimer?.cancel();
-    _hideTimer = Timer(const Duration(seconds: 3), () {
+    _hideTimer = Timer(const Duration(seconds: _UI_HOLD_SECS), () {
       if (mounted) setState(() => _showUi = false);
     });
   }
@@ -266,10 +275,18 @@ class _ReaderSwipeCleanState extends State<ReaderSwipeClean> {
     _pages.clear();
     _chapterStartIndex.clear();
 
+    // derive a bookKey (burn/rocksolid/trustme/draculi/loser)
+    _bookKey = 'book';
+    if (widget.chaptersDir != null) {
+      final segs = widget.chaptersDir!.split('/').where((s) => s.isNotEmpty).toList();
+      _bookKey = segs.isNotEmpty ? segs.last : _bookKey;
+    }
+
+    // Base pages
     _pages.add(_Entry.cover());
     _pages.add(_Entry.title());
 
-    // Front matter (safe)
+    // Front matter
     for (final fm in widget.frontMatter) {
       try {
         final text = await rootBundle.loadString(fm.assetPath);
@@ -279,17 +296,18 @@ class _ReaderSwipeCleanState extends State<ReaderSwipeClean> {
       }
     }
 
+    // Build chapters
     final capacity = _estimateCharsPerPage(context);
-
     if (widget.chaptersDir != null) {
       await _buildChaptersFromFolder(widget.chaptersDir!, capacity);
     } else if (widget.assetPath != null) {
       await _buildChaptersFromMonolithic(widget.assetPath!, capacity);
     }
 
+    // Jump to start
     final startIndex = switch (widget.startAt) {
-      ReaderStart.cover => 0,
-      ReaderStart.title => 1,
+      ReaderStart.cover    => 0,
+      ReaderStart.title    => 1,
       ReaderStart.chapter1 => _chapterStartIndex.isNotEmpty ? _chapterStartIndex.first : 0,
     };
 
@@ -306,7 +324,7 @@ class _ReaderSwipeCleanState extends State<ReaderSwipeClean> {
   Future<void> _buildChaptersFromFolder(String base, int capacity) async {
     final total = widget.maxChapters ?? 39;
 
-    // infer key from folder name (burn/rocksolid/trustme/draculi/loser)
+    // infer key from folder name
     final segs = base.split('/').where((s) => s.isNotEmpty).toList();
     final key = segs.isEmpty ? 'burn' : segs.last;
 
@@ -320,9 +338,7 @@ class _ReaderSwipeCleanState extends State<ReaderSwipeClean> {
       try {
         final t = (await rootBundle.loadString(titlePath)).trim();
         if (t.isNotEmpty) titleText = t;
-      } catch (_) {
-        // keep default
-      }
+      } catch (_) {}
 
       // Body (required; skip if missing)
       String bodyText;
@@ -344,12 +360,11 @@ class _ReaderSwipeCleanState extends State<ReaderSwipeClean> {
   }
 
   Future<void> _buildChaptersFromMonolithic(String manuscriptPath, int capacity) async {
-    // Safely load a single “manuscript.txt” that contains all chapters
     String manuscript;
     try {
       manuscript = await rootBundle.loadString(manuscriptPath);
     } catch (_) {
-      return; // missing file → just skip
+      return;
     }
 
     final re = RegExp(r'(?=^\s*Chapter\s+\d+\b)', multiLine: true);
@@ -402,6 +417,34 @@ class _ReaderSwipeCleanState extends State<ReaderSwipeClean> {
     return cc.clamp(1, _chapterStartIndex.length);
   }
 
+  Future<void> _maybeShowPaywallForChapter(int chapter, {int? intendedIndex}) async {
+    if (_showingPaywall) return;
+    if (AccessManager.instance.canAccessChapter(_bookKey, chapter)) return;
+
+    _showingPaywall = true;
+
+    // compute last free page (end of chapter [gateAtChapter])
+    final gate = AccessManager.gateAtChapter;
+    final nextStart = gate < _chapterStartIndex.length ? _chapterStartIndex[gate] : _pages.length;
+    final lastFreePage = (nextStart - 1).clamp(0, _pages.length - 1);
+    _pendingIndexAfterUnlock = intendedIndex;
+
+    if (_pc.hasClients) {
+      _pc.jumpToPage(lastFreePage);
+    }
+
+    final unlocked = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => PaywallScreen(bookKey: _bookKey)),
+    );
+
+    _showingPaywall = false;
+
+    if (unlocked == true && _pendingIndexAfterUnlock != null && _pc.hasClients) {
+      _pc.jumpToPage(_pendingIndexAfterUnlock!.clamp(0, _pages.length - 1));
+    }
+    _pendingIndexAfterUnlock = null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -417,7 +460,20 @@ class _ReaderSwipeCleanState extends State<ReaderSwipeClean> {
                 children: [
                   PageView.builder(
                     controller: _pc,
-                    onPageChanged: (i) => setState(() => _current = i),
+                    onPageChanged: (i) async {
+                      setState(() => _current = i);
+
+                      final ch = _currentChapterForIndex(i);
+                      if (ch != null) {
+                        // save progress
+                        final relPage = i - _chapterStartIndex[ch - 1];
+                        unawaited(AccessManager.instance
+                            .saveProgress(_bookKey, chapter: ch, page: relPage));
+
+                        // gate check
+                        await _maybeShowPaywallForChapter(ch, intendedIndex: i);
+                      }
+                    },
                     itemCount: _pages.length,
                     itemBuilder: (context, index) {
                       final e = _pages[index];
@@ -429,7 +485,8 @@ class _ReaderSwipeCleanState extends State<ReaderSwipeClean> {
                       );
                     },
                   ),
-                  if (_showUi && _chapterStartIndex.isNotEmpty)
+
+                  if (_chapterStartIndex.isNotEmpty)
                     Positioned(
                       top: 0,
                       left: 0,
@@ -438,7 +495,15 @@ class _ReaderSwipeCleanState extends State<ReaderSwipeClean> {
                         onBack: () => Navigator.of(context).maybePop(),
                         currentChapter: _currentChapterOr1(),
                         maxChapters: _chapterStartIndex.length,
-                        onSelectChapter: _jumpToChapter,
+                        onSelectChapter: (v) async {
+                          // gate on dropdown selection as well
+                          if (!AccessManager.instance.canAccessChapter(_bookKey, v)) {
+                            await _maybeShowPaywallForChapter(v);
+                          } else {
+                            _jumpToChapter(v);
+                          }
+                          _scheduleHide();
+                        },
                       ),
                     ),
                 ],
@@ -463,7 +528,7 @@ class _Entry {
   factory _Entry.chapterBody(String t) => _Entry._(_PageType.chapterBody, text: t, scrollable: false);
 }
 
-// ========================= Page rendering ==========================
+// ======================= Helpers / blocks ==========================
 class _PageCard extends StatelessWidget {
   const _PageCard({
     required this.entry,
@@ -568,7 +633,6 @@ class _PageCard extends StatelessWidget {
   }
 }
 
-// ======================= Helpers / blocks ==========================
 class _CenteredBlock extends StatelessWidget {
   const _CenteredBlock({required this.text});
   final String text;
