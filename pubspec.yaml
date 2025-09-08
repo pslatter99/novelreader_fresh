@@ -10,7 +10,8 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
-  shared_preferences: ^2.2.3
+  shared_preferences: ^2.5.3
+  audioplayers: ^6.5.1
 
 
   
@@ -32,6 +33,7 @@ flutter:
     - assets/chapters/trustme/
     - assets/chapters/draculi/
     - assets/chapters/loser/
+    - assets/audio/draculi/  
 
     
 
